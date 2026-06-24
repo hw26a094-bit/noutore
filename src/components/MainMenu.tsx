@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { Brain, Palette, Calculator, Grid3X3, MousePointer, Keyboard, Award, Calendar, Zap, Home, HelpCircle } from 'lucide-react';
+import { Brain, Palette, Calculator, Grid3X3, MousePointer, Keyboard, Award, Zap, Home, HelpCircle, Hand } from 'lucide-react';
 import { GameType } from '../types';
 
 interface MainMenuProps {
@@ -57,12 +57,23 @@ export default function MainMenu({ onSelectGame, highScores }: MainMenuProps) {
       id: 'nback' as GameType,
       title: 'ワーキングメモリトレーニング',
       category: '作業記憶系',
-      desc: '次々に表示されるシンプルな記号を順に暗記！リアルタイムに「N個前」に表示された記号は何かを選択肢から正確に選べ。',
+      desc: '次々に表示されるシンプルな记号を顺に暗记！リアルタイムに「N個前」に表示された記号は何かを選択肢から正確に選べ。',
       icon: HelpCircle,
       themeColor: 'violet',
       controls: [{ icon: MousePointer, text: 'マウス専用' }],
       difficulties: ['リアルタイム難度上昇', '作業記憶（ワーキングメモリ）'],
       borderColor: 'border-violet-100 hover:border-violet-300 hover:shadow-violet-50 bg-violet-50/10'
+    },
+    {
+      id: 'janken' as GameType,
+      title: '後出しジャンケン',
+      category: '反射・判断系',
+      desc: '指示（勝つ・負ける・あいこ）と相手の手を瞬時に判断！指示通りの手を素早く後出しで選択せよ。',
+      icon: Hand,
+      themeColor: 'rose',
+      controls: [{ icon: MousePointer, text: 'マウス専用' }],
+      difficulties: ['勝つ・負ける・あいこ', '素早い判断'],
+      borderColor: 'border-rose-100 hover:border-rose-300 hover:shadow-rose-50 bg-rose-50/10'
     }
   ];
 
@@ -70,18 +81,9 @@ export default function MainMenu({ onSelectGame, highScores }: MainMenuProps) {
     <div className="w-full max-w-7xl mx-auto space-y-10" id="main-menu-container">
       {/* Title Header */}
       <div className="text-center space-y-3" id="main-menu-header">
-        <motion.div
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="inline-flex items-center justify-center bg-gray-50 border border-gray-100 px-4 py-1.5 rounded-full text-xs font-semibold text-gray-500 tracking-wider gap-1.5 shadow-sm"
-        >
-          <Zap size={13} className="text-amber-500 animate-pulse" />
-          脳力トレーニングスイート
-        </motion.div>
-        
         <h1 className="font-sans text-3xl sm:text-4xl md:text-5xl font-black text-gray-900 tracking-tight leading-tight flex items-center justify-center gap-1 sm:gap-3">
           <Brain className="text-gray-900" size={38} />
-          脳力ゲームセンター
+          脳を鍛えるトレーニング
         </h1>
         <p className="text-gray-500 max-w-xl mx-auto text-sm sm:text-base leading-relaxed">
           科学的脳力アプローチに基づいた本格的なミニゲーム。思考スピード、短期記憶（ワーキングメモリ）、反射神経、注意力の限界へと今すぐ挑戦。
@@ -144,18 +146,6 @@ export default function MainMenu({ onSelectGame, highScores }: MainMenuProps) {
           );
         })}
       </div>
-
-      {/* Retro Stats Block or Information Banner */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.4 }}
-        className="bg-gray-50 border border-gray-100 rounded-2xl p-5 text-center text-xs text-gray-500/80 font-mono tracking-wide flex items-center justify-center gap-2 max-w-xl mx-auto"
-        id="main-menu-footer-info"
-      >
-        <Calendar size={13} />
-        <span>脳力トレーニング 60秒の制限時間と減点システム</span>
-      </motion.div>
     </div>
   );
 }

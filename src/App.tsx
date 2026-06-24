@@ -6,6 +6,7 @@ import ArithmeticGame from './components/ArithmeticGame';
 import GridMemoryGame from './components/GridMemoryGame';
 import PeopleCountingGame from './components/PeopleCountingGame';
 import NBackGame from './components/NBackGame';
+import RockPaperScissorsGame from './components/RockPaperScissorsGame';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<GameType>('menu');
@@ -86,12 +87,16 @@ export default function App() {
             onSaveScore={handleSaveScore}
           />
         )}
+
+        {currentView === 'janken' && (
+          <RockPaperScissorsGame
+            onBackToMenu={() => setCurrentView('menu')}
+            onSaveScore={handleSaveScore}
+          />
+        )}
       </main>
 
       <footer className="mt-8 text-center" id="main-application-footer">
-        <p className="text-[11px] font-mono text-gray-400 select-none">
-          脳力ゲームセンター &copy; 2026. すべての計算・認知データはローカルで高速処理されます
-        </p>
       </footer>
     </div>
   );
