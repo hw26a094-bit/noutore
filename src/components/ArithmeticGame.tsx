@@ -15,8 +15,12 @@ interface MathStep {
 
 export default function ArithmeticGame({ onBackToMenu, onSaveScore }: ArithmeticGameProps) {
   const [gameState, setGameState] = useState<'idle' | 'showing' | 'answering' | 'ended'>('idle');
-  const [timeLeft, setTimeLeft] = useState(60);
+  const [gameMode, setGameMode] = useState<'normal' | 'unlimited'>('normal');
   const [score, setScore] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(60);
+  const [totalQuestionsAnswered, setTotalQuestionsAnswered] = useState(0);
+  
+  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   // Stages and steps configuration
   const [steps, setSteps] = useState<MathStep[]>([]);
@@ -24,85 +28,136 @@ export default function ArithmeticGame({ onBackToMenu, onSaveScore }: Arithmetic
   const [correctAnswer, setCorrectAnswer] = useState(0);
   const [userInput, setUserInput] = useState('');
   const [isAnswerCorrect, setIsAnswerCorrect] = useState<boolean | null>(null);
-  
-  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const stepIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Evaluate steps using standard mathematical precedence (MDAS)
+  const evaluateSteps = (sequence: MathStep[]): number | null => {
+    if (sequence.length === 0) return 0;
+
+    const values: number[] = [sequence[0].val];
+    const ops: string[] = [];
+    for (let i = 1; i < sequence.length; i++) {
+      ops.push(sequence[i].op);
+      values.push(sequence[i].val);
+    }
+
+    const currentValues = [...values];
+    const currentOps = [...ops];
+
+    let i = 0;
+    while (i < currentOps.length) {
+      if (currentOps[i] === '*' || currentOps[i] === '/') {
+        const left = currentValues[i];
+        const right = currentValues[i + 1];
+        const op = currentOps[i];
+
+        let result = 0;
+        if (op === '*') {
+          result = left * right;
+        } else {
+          if (right === 0 || left % right !== 0) {
+            return null; // Must be standard clean integer division
+          }
+          result = left / right;
+        }
+
+        currentValues.splice(i, 2, result);
+        currentOps.splice(i, 1);
+      } else {
+        i++;
+      }
+    }
+
+    let total = currentValues[0];
+    for (let j = 0; j < currentOps.length; j++) {
+      const op = currentOps[j];
+      const val = currentValues[j + 1];
+      if (op === '+') {
+        total += val;
+      } else if (op === '-') {
+        total -= val;
+      }
+    }
+
+    return total;
+  };
+
+  // Helper to generate a candidate equation steps
+  const tryGenerateSequence = (): MathStep[] => {
+    const sequence: MathStep[] = [];
+    const startVal = Math.floor(Math.random() * 20) + 5;
+    sequence.push({ text: `${startVal}`, op: 'init', val: startVal });
+
+    const ops: ('+' | '-' | '*' | '/')[] = ['+', '-', '*', '/'];
+
+    for (let j = 1; j < 4; j++) {
+      const op = ops[Math.floor(Math.random() * ops.length)];
+      let val = 1;
+      let text = '';
+
+      if (op === '+') {
+        val = Math.floor(Math.random() * 95) + 5; // 5 to 99
+        text = `+ ${val}`;
+      } else if (op === '-') {
+        val = Math.floor(Math.random() * 80) + 5; // 5 to 84
+        text = `- ${val}`;
+      } else if (op === '*') {
+        val = Math.floor(Math.random() * 8) + 2; // 2 to 9
+        text = `× ${val}`;
+      } else if (op === '/') {
+        val = Math.floor(Math.random() * 8) + 2; // 2 to 9
+        text = `÷ ${val}`;
+      }
+
+      sequence.push({ text, op, val });
+    }
+
+    return sequence;
+  };
 
   // Generate a valid list of math operations that remain integers
   const generateProblem = () => {
-    const totalSteps = 4; // Standard steps to keep game fast-paced
-    const sequence: MathStep[] = [];
-    
-    // Choose start number: let's start with a friendly positive number
-    let runningTotal = Math.floor(Math.random() * 20) + 5; 
-    sequence.push({ text: `${runningTotal}`, op: 'init', val: runningTotal });
+    let sequence: MathStep[] = [];
+    let answer: number | null = null;
+    let attempts = 0;
 
-    for (let i = 1; i < totalSteps; i++) {
-      const ops: ('+' | '-' | '*' | '/')[] = ['+', '-', '*', '/'];
-      const op = ops[Math.floor(Math.random() * ops.length)];
-
-      if (op === '+') {
-        const val = Math.floor(Math.random() * 150) + 5; // Up to 3 digits (usually double-digit or triple-digit up to 150-500)
-        runningTotal += val;
-        sequence.push({ text: `+ ${val}`, op, val });
-      } else if (op === '-') {
-        const val = Math.floor(Math.random() * 120) + 5; // Up to 3 digits
-        runningTotal -= val;
-        sequence.push({ text: `- ${val}`, op, val });
-      } else if (op === '*') {
-        // Up to 2-digit multiplication, keeping it human-solvable (e.g. 2 to 12)
-        const val = Math.floor(Math.random() * 10) + 2; 
-        runningTotal *= val;
-        sequence.push({ text: `× ${val}`, op, val });
-      } else { // division
-        // To guarantee a clean integer: find small divisors of the absolute running total
-        const n = Math.abs(runningTotal);
-        const divisors: number[] = [];
-        
-        // Find divisors up to 2-digits (max 15 for human mental arithmetic comfort)
-        for (let d = 2; d <= Math.min(n, 15); d++) {
-          if (n % d === 0) {
-            divisors.push(d);
-          }
-        }
-
-        if (divisors.length > 0) {
-          const val = divisors[Math.floor(Math.random() * divisors.length)];
-          runningTotal = runningTotal / val;
-          sequence.push({ text: `÷ ${val}`, op, val });
-        } else {
-          // Fallback to simple addition to preserve game pace
-          const val = Math.floor(Math.random() * 30) + 5;
-          runningTotal += val;
-          sequence.push({ text: `+ ${val}`, op: '+', val });
-        }
+    while (attempts < 500) {
+      sequence = tryGenerateSequence();
+      answer = evaluateSteps(sequence);
+      if (answer !== null) {
+        break;
       }
+      attempts++;
+    }
+
+    // Fallback if no valid division sequence is found
+    if (answer === null) {
+      sequence = [];
+      const startVal = Math.floor(Math.random() * 20) + 5;
+      sequence.push({ text: `${startVal}`, op: 'init', val: startVal });
+      for (let j = 1; j < 4; j++) {
+        const op: '+' | '-' = Math.random() > 0.5 ? '+' : '-';
+        const val = Math.floor(Math.random() * 50) + 5;
+        sequence.push({ text: op === '+' ? `+ ${val}` : `- ${val}`, op, val });
+      }
+      answer = evaluateSteps(sequence)!;
     }
 
     setSteps(sequence);
     setCurrentStepIndex(0);
-    setCorrectAnswer(runningTotal);
+    setCorrectAnswer(answer);
     setUserInput('');
     setIsAnswerCorrect(null);
   };
 
-  const startGame = () => {
-    setScore(0);
-    setTimeLeft(60);
-    setGameState('showing');
-    generateProblem();
-  };
-
-  // Main countdown timer (60s)
+  // Main countdown timer (60s) for normal mode
   useEffect(() => {
-    if (gameState === 'showing' || gameState === 'answering') {
+    if (gameState === 'answering' && gameMode === 'normal') {
       if (!timerIntervalRef.current) {
         timerIntervalRef.current = setInterval(() => {
           setTimeLeft((prev) => {
             if (prev <= 1) {
               clearInterval(timerIntervalRef.current!);
               timerIntervalRef.current = null;
-              if (stepIntervalRef.current) clearInterval(stepIntervalRef.current);
               setGameState('ended');
               onSaveScore(score);
               return 0;
@@ -111,7 +166,7 @@ export default function ArithmeticGame({ onBackToMenu, onSaveScore }: Arithmetic
           });
         }, 1000);
       }
-    } else if (gameState === 'ended' || gameState === 'idle') {
+    } else {
       if (timerIntervalRef.current) {
         clearInterval(timerIntervalRef.current);
         timerIntervalRef.current = null;
@@ -124,27 +179,25 @@ export default function ArithmeticGame({ onBackToMenu, onSaveScore }: Arithmetic
         timerIntervalRef.current = null;
       }
     };
-  }, [gameState, score, onSaveScore]);
+  }, [gameState, gameMode, score, onSaveScore]);
 
-  // Handle sequence presentation steps
-  useEffect(() => {
-    if (gameState === 'showing' && steps.length > 0) {
-      stepIntervalRef.current = setInterval(() => {
-        setCurrentStepIndex((prevIndex) => {
-          if (prevIndex >= steps.length - 1) {
-            clearInterval(stepIntervalRef.current!);
-            setGameState('answering');
-            return prevIndex;
-          }
-          return prevIndex + 1;
-        });
-      }, 1200); // 1.2 seconds presentation time per card
+  const startGame = (mode: 'normal' | 'unlimited') => {
+    setGameMode(mode);
+    setScore(0);
+    setTimeLeft(60);
+    setTotalQuestionsAnswered(0);
+    setGameState('answering');
+    generateProblem();
+  };
+
+  const forceEndGame = () => {
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
     }
-
-    return () => {
-      if (stepIntervalRef.current) clearInterval(stepIntervalRef.current);
-    };
-  }, [gameState, steps]);
+    setGameState('ended');
+    onSaveScore(score);
+  };
 
   const handleKeyPress = (char: string) => {
     if (gameState !== 'answering') return;
@@ -177,23 +230,25 @@ export default function ArithmeticGame({ onBackToMenu, onSaveScore }: Arithmetic
 
     const parsedAns = parseInt(userInput, 10);
     const isCorrect = parsedAns === correctAnswer;
+    let nextScore = score;
 
     if (isCorrect) {
-      setScore(prev => prev + 500);
+      nextScore = score + 500;
+      setScore(nextScore);
       setIsAnswerCorrect(true);
     } else {
-      setScore(prev => Math.max(0, prev - 200));
+      nextScore = Math.max(0, score - 200);
+      setScore(nextScore);
       setIsAnswerCorrect(false);
     }
 
-    // Keep state highlighted for half a second, then generate next question
+    const nextTotalAnswers = totalQuestionsAnswered + 1;
+    setTotalQuestionsAnswered(nextTotalAnswers);
+
+    // Keep state highlighted for slightly over half a second, then generate next question
     setTimeout(() => {
-      if (timeLeft > 0) {
-        generateProblem();
-        setGameState('showing');
-      } else {
-        setGameState('ended');
-      }
+      generateProblem();
+      setGameState('answering');
     }, 800);
   };
 
@@ -252,27 +307,38 @@ export default function ArithmeticGame({ onBackToMenu, onSaveScore }: Arithmetic
               限界暗算ゲーム
             </h2>
             <p className="text-gray-600 mb-6 text-sm sm:text-base max-w-md mx-auto leading-relaxed">
-              画面の真ん中に1ステップずつ順番に表示される数字や数式を、頭の中で計算し続けてください。最後に表示が終わった時点での答えを入力します！
+              画面の真ん中に追加されていく計算式を、頭の中で計算してください。完成した式の答えを入力します！
             </p>
 
             <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 mb-8 text-left text-xs sm:text-sm max-w-sm mx-auto space-y-3 font-sans" id="arithmetic-rules-box">
-              <div className="font-semibold text-gray-700">【数字・桁数】</div>
+              <div className="font-semibold text-gray-700">【ゲームルール】</div>
               <ul className="list-disc pl-5 space-y-1 text-gray-600">
+                <li>表示された数字・数式は消えずに、ずっと画面上に表示されます。</li>
+                <li>通常モードは制限時間60秒、無制限モードは時間無制限です。</li>
                 <li><strong className="text-gray-900">足し算・引き算</strong>: 1桁から3桁まで登場</li>
-                <li><strong className="text-gray-900">掛け算・割り算</strong>: 1桁から2桁まで登場（割り算は、必ずピタッと整数で割り切れます）</li>
+                <li><strong className="text-gray-900">掛け算・割り算</strong>: 1桁から2桁まで登場（必ずピタッと整数で割り切れます）</li>
               </ul>
               <div className="text-xs text-gray-500 border-t border-gray-200/60 pt-2 flex items-center gap-1">
                 ⌨️ PCのテンキー/数字キーで素早く打ち込んで Enter で送信できます。
               </div>
             </div>
 
-            <button
-              onClick={startGame}
-              className="bg-gray-900 hover:bg-gray-800 text-white font-medium text-lg px-8 py-3 rounded-full shadow-md hover:shadow-lg transition-all"
-              id="arithmetic-start-btn"
-            >
-              ゲームを開始する
-            </button>
+            <div className="flex flex-col sm:flex-row justify-center items-center gap-4 max-w-md mx-auto">
+              <button
+                onClick={() => startGame('normal')}
+                className="w-full sm:w-1/2 bg-gray-900 hover:bg-gray-800 text-white font-semibold text-base py-3 px-4 rounded-xl shadow-md hover:shadow-lg transition-all"
+                id="arithmetic-start-normal-btn"
+              >
+                通常モード (60秒)
+              </button>
+              <button
+                onClick={() => startGame('unlimited')}
+                className="w-full sm:w-1/2 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-base py-3 px-4 rounded-xl shadow-md hover:shadow-lg transition-all"
+                id="arithmetic-start-unlimited-btn"
+              >
+                無制限モード (時間なし)
+              </button>
+            </div>
           </motion.div>
         )}
 
@@ -283,28 +349,31 @@ export default function ArithmeticGame({ onBackToMenu, onSaveScore }: Arithmetic
             id="arithmetic-active-view"
           >
             {/* HUD */}
-            <div className="grid grid-cols-2 gap-4 border-b border-gray-100 pb-5 text-center font-sans">
-              <div className="bg-gray-50 p-2.5 rounded-xl border border-gray-100" id="arithmetic-hud-score">
+            <div className="grid grid-cols-3 gap-3 border-b border-gray-100 pb-5 text-center font-sans items-stretch">
+              <div className="bg-gray-50 p-2 rounded-xl border border-gray-100 flex flex-col justify-center" id="arithmetic-hud-score">
                 <span className="block text-xs text-gray-400 uppercase font-semibold">スコア</span>
-                <span className="text-xl sm:text-2xl font-bold text-gray-800">{score}</span>
+                <span className="text-lg sm:text-2xl font-bold text-gray-800">{score}</span>
               </div>
-              <div className="bg-amber-50/50 p-2.5 rounded-xl border border-amber-50 flex flex-col items-center justify-center">
+              <div className="bg-amber-50/50 p-2 rounded-xl border border-amber-50 flex flex-col items-center justify-center">
                 <span className="text-xs text-amber-600 font-semibold uppercase flex items-center gap-1 mb-0.5">
-                  <Timer size={12} className="animate-pulse" /> 残りタイム
+                  <Timer size={12} className="animate-pulse" /> {gameMode === 'normal' ? '残り時間' : '回答数'}
                 </span>
-                <span className="text-xl sm:text-2xl font-mono font-bold text-amber-600">{timeLeft} <span className="text-xs">秒</span></span>
+                <span className="text-lg sm:text-2xl font-mono font-bold text-amber-600">
+                  {gameMode === 'normal' ? `${timeLeft}秒` : `${totalQuestionsAnswered}問`}
+                </span>
               </div>
+              <button
+                onClick={forceEndGame}
+                className="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold p-2 rounded-xl border border-rose-200 transition-colors flex flex-col justify-center items-center text-xs sm:text-sm"
+                id="arithmetic-exit-btn"
+              >
+                <span>終了して</span>
+                <span>リザルトへ</span>
+              </button>
             </div>
 
             {/* Main Stage Display Card */}
             <div className="flex flex-col justify-center items-center h-52 bg-gray-50/50 border border-gray-100 rounded-2xl relative overflow-hidden" id="arithmetic-card-display">
-              {/* Top Step Progress Bar */}
-              {gameState === 'showing' && (
-                <div className="absolute top-4 left-4 right-4 flex items-center justify-between text-xs font-semibold text-gray-400">
-                  <span>暗記・暗算フェーズ</span>
-                  <span>ステップ {currentStepIndex + 1} / {steps.length}</span>
-                </div>
-              )}
 
               {/* Success/Wrong overlays */}
               <AnimatePresence>
@@ -316,53 +385,38 @@ export default function ArithmeticGame({ onBackToMenu, onSaveScore }: Arithmetic
                 )}
               </AnimatePresence>
 
-              {gameState === 'showing' ? (
-                <div className="text-center z-10">
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={currentStepIndex}
-                      initial={{ scale: 0.8, opacity: 0, y: 10 }}
-                      animate={{ scale: 1, opacity: 1, y: 0 }}
-                      exit={{ scale: 1.05, opacity: 0, y: -10 }}
-                      transition={{ duration: 0.18 }}
-                      className="text-4xl sm:text-5xl font-black text-gray-800 tracking-widest font-mono"
-                      id="arithmetic-formula"
-                    >
-                      {steps[currentStepIndex]?.text}
-                    </motion.div>
-                  </AnimatePresence>
-                </div>
-              ) : (
-                <div className="text-center z-10 w-full px-6">
-                  {isAnswerCorrect === null ? (
-                    <div className="space-y-4">
-                      <p className="text-sm font-semibold text-gray-400 uppercase tracking-wider">合計の答えを入力してください</p>
-                      <div className="flex justify-center items-center gap-1.5">
-                        <span className="text-4xl sm:text-5xl font-black text-gray-800 tracking-tight font-mono">
-                          {userInput || ' '}
-                        </span>
-                        <span className="w-1 h-10 bg-gray-800 animate-pulse inline-block" />
-                      </div>
+              <div className="text-center z-10 w-full px-6">
+                {isAnswerCorrect === null ? (
+                  <div className="space-y-4">
+                    <p className="text-sm font-semibold text-gray-400 uppercase tracking-wider">合計の答えを入力してください</p>
+                    <div className="text-3xl sm:text-4xl md:text-5xl font-black text-gray-800 tracking-wide font-mono leading-relaxed" id="arithmetic-formula">
+                      {steps.map(step => step.text).join(' ')} = ?
                     </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      {isAnswerCorrect ? (
-                        <>
-                          <CheckCircle2 size={48} className="text-emerald-500" />
-                          <span className="text-lg font-bold text-emerald-600">正解！ (+500 pt)</span>
-                          <span className="font-mono text-sm text-gray-400">答え：{correctAnswer}</span>
-                        </>
-                      ) : (
-                        <>
-                          <AlertCircle size={48} className="text-rose-500" />
-                          <span className="text-lg font-bold text-rose-500">不正解 (-200 pt)</span>
-                          <span className="font-mono text-sm text-gray-500">正しい答え：{correctAnswer}</span>
-                        </>
-                      )}
+                    <div className="flex justify-center items-center gap-1.5">
+                      <span className="text-4xl sm:text-5xl font-black text-gray-800 tracking-tight font-mono">
+                        {userInput || ' '}
+                      </span>
+                      <span className="w-1 h-10 bg-gray-800 animate-pulse inline-block" />
                     </div>
-                  )}
-                </div>
-              )}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    {isAnswerCorrect ? (
+                      <>
+                        <CheckCircle2 size={48} className="text-emerald-500" />
+                        <span className="text-lg font-bold text-emerald-600">正解！ (+500 pt)</span>
+                        <span className="font-mono text-sm text-gray-400">答え：{correctAnswer}</span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle size={48} className="text-rose-500" />
+                        <span className="text-lg font-bold text-rose-500">不正解 (-200 pt)</span>
+                        <span className="font-mono text-sm text-gray-500">正しい答え：{correctAnswer}</span>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Digital Pad Interface (for Mouse) */}
@@ -429,10 +483,10 @@ export default function ArithmeticGame({ onBackToMenu, onSaveScore }: Arithmetic
             </div>
 
             <h2 className="font-sans text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight mb-2">
-              タイムアップ！
+              トレーニング終了！
             </h2>
             <p className="text-gray-500 text-sm mb-6">
-              脳の超高速限界暗算トレーニングが終了しました！
+              10問の超高速限界暗算トレーニングが終了しました！
             </p>
 
             <div className="bg-gray-50 border border-gray-100 rounded-2xl p-5 max-w-sm mx-auto mb-8 font-sans">

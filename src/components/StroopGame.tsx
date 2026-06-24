@@ -24,9 +24,11 @@ const COLORS: ColorData[] = [
 
 export default function StroopGame({ onBackToMenu, onSaveScore }: StroopGameProps) {
   const [gameState, setGameState] = useState<'idle' | 'playing' | 'ended'>('idle');
+  const [gameMode, setGameMode] = useState<'normal' | 'unlimited'>('normal');
   const [timeLeft, setTimeLeft] = useState(60);
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
+  const [totalQuestionsAnswered, setTotalQuestionsAnswered] = useState(0);
   
   // Game round state
   const [instruction, setInstruction] = useState<'meaning' | 'color'>('meaning'); // Meaning vs Ink Color
@@ -55,16 +57,27 @@ export default function StroopGame({ onBackToMenu, onSaveScore }: StroopGameProp
     setIsAnswerCorrect(null);
   };
 
-  const startGame = () => {
+  const startGame = (mode: 'normal' | 'unlimited') => {
+    setGameMode(mode);
     setScore(0);
     setCombo(0);
     setTimeLeft(60);
+    setTotalQuestionsAnswered(0);
     setGameState('playing');
     generateQuestion();
   };
 
+  const forceEndGame = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    setGameState('ended');
+    onSaveScore(score);
+  };
+
   useEffect(() => {
-    if (gameState === 'playing') {
+    if (gameState === 'playing' && gameMode === 'normal') {
       timerRef.current = setInterval(() => {
         setTimeLeft((prev) => {
           if (prev <= 1) {
@@ -81,7 +94,7 @@ export default function StroopGame({ onBackToMenu, onSaveScore }: StroopGameProp
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [gameState, score, onSaveScore]);
+  }, [gameState, gameMode, score, onSaveScore]);
 
   // Save latest score when game changes state to ended or score updates in exact timing
   useEffect(() => {
@@ -107,6 +120,8 @@ export default function StroopGame({ onBackToMenu, onSaveScore }: StroopGameProp
       setCombo(0);
       setIsAnswerCorrect(false);
     }
+
+    setTotalQuestionsAnswered(prev => prev + 1);
 
     // Delay slightly to show color status feedback before advancing
     setTimeout(() => {
@@ -155,13 +170,22 @@ export default function StroopGame({ onBackToMenu, onSaveScore }: StroopGameProp
               <div className="pl-4 text-gray-600">・指示が<strong className="text-gray-900">「色を答えろ！」</strong> ➔ <span className="bg-gray-200 px-1.5 py-0.5 rounded font-bold">あお</span> を選択</div>
             </div>
 
-            <button
-              onClick={startGame}
-              className="bg-gray-900 hover:bg-gray-800 text-white font-medium text-lg px-8 py-3 rounded-full shadow-md hover:shadow-lg transition-all duration-200"
-              id="stroop-start-btn"
-            >
-              ゲームを開始する
-            </button>
+            <div className="flex flex-col sm:flex-row justify-center items-center gap-4 max-w-md mx-auto">
+              <button
+                onClick={() => startGame('normal')}
+                className="w-full sm:w-1/2 bg-gray-900 hover:bg-gray-800 text-white font-semibold text-base py-3 px-4 rounded-xl shadow-md hover:shadow-lg transition-all"
+                id="stroop-start-normal-btn"
+              >
+                通常モード (60秒)
+              </button>
+              <button
+                onClick={() => startGame('unlimited')}
+                className="w-full sm:w-1/2 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-base py-3 px-4 rounded-xl shadow-md hover:shadow-lg transition-all"
+                id="stroop-start-unlimited-btn"
+              >
+                無制限モード (時間なし)
+              </button>
+            </div>
           </motion.div>
         )}
 
@@ -175,23 +199,33 @@ export default function StroopGame({ onBackToMenu, onSaveScore }: StroopGameProp
             id="stroop-play-view"
           >
             {/* HUD */}
-            <div className="grid grid-cols-3 gap-4 border-b border-gray-100 pb-5 text-center font-sans">
-              <div className="bg-gray-50 p-2.5 rounded-xl border border-gray-100" id="stroop-hud-score">
-                <span className="block text-xs text-gray-400 uppercase font-semibold">スコア</span>
-                <span className="text-xl sm:text-2xl font-bold text-gray-800">{score}</span>
+            <div className="grid grid-cols-4 gap-2 border-b border-gray-100 pb-5 text-center font-sans items-stretch">
+              <div className="bg-gray-50 p-1.5 rounded-xl border border-gray-100 flex flex-col justify-center" id="stroop-hud-score">
+                <span className="block text-[10px] text-gray-400 uppercase font-semibold">スコア</span>
+                <span className="text-sm sm:text-lg font-bold text-gray-800">{score}</span>
               </div>
-              <div className="bg-red-50/50 p-2.5 rounded-xl border border-red-50 flex flex-col items-center justify-center" id="stroop-hud-timer">
-                <span className="text-xs text-red-500 font-semibold uppercase flex items-center gap-1 mb-0.5">
-                  <Timer size={12} className="animate-pulse" /> 制限時間
+              <div className="bg-red-50/50 p-1.5 rounded-xl border border-red-50 flex flex-col items-center justify-center" id="stroop-hud-timer">
+                <span className="text-[10px] text-red-500 font-semibold uppercase flex items-center gap-0.5 mb-0.5">
+                  <Timer size={10} className="animate-pulse" /> {gameMode === 'normal' ? '制限時間' : '回答数'}
                 </span>
-                <span className="text-xl sm:text-2xl font-mono font-bold text-red-600">{timeLeft} <span className="text-xs">秒</span></span>
-              </div>
-              <div className="bg-gray-50 p-2.5 rounded-xl border border-gray-100" id="stroop-hud-combo">
-                <span className="block text-xs text-gray-400 uppercase font-semibold">コンボ</span>
-                <span className="text-xl sm:text-2xl font-bold text-gray-800">
-                  {combo} <span className="text-xs text-gray-500">連続</span>
+                <span className="text-sm sm:text-lg font-mono font-bold text-red-600">
+                  {gameMode === 'normal' ? `${timeLeft}秒` : `${totalQuestionsAnswered}問`}
                 </span>
               </div>
+              <div className="bg-gray-50 p-1.5 rounded-xl border border-gray-100 flex flex-col justify-center" id="stroop-hud-combo">
+                <span className="block text-[10px] text-gray-400 uppercase font-semibold">コンボ</span>
+                <span className="text-sm sm:text-lg font-bold text-gray-800">
+                  {combo} <span className="text-[10px] text-gray-500">連続</span>
+                </span>
+              </div>
+              <button
+                onClick={forceEndGame}
+                className="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold p-1 rounded-xl border border-rose-200 transition-colors flex flex-col justify-center items-center text-xs sm:text-sm"
+                id="stroop-exit-btn"
+              >
+                <span>終了して</span>
+                <span>リザルトへ</span>
+              </button>
             </div>
 
             {/* Instruction Banner */}
@@ -290,7 +324,7 @@ export default function StroopGame({ onBackToMenu, onSaveScore }: StroopGameProp
             </div>
             
             <h2 className="font-sans text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight mb-2">
-              タイムアップ！
+              トレーニング終了！
             </h2>
             <p className="text-gray-500 text-sm mb-6">
               脳が揺さぶられるストループ効果に打ち勝てましたか？
@@ -303,7 +337,7 @@ export default function StroopGame({ onBackToMenu, onSaveScore }: StroopGameProp
 
             <div className="flex flex-col sm:flex-row justify-center items-center gap-3" id="stroop-ended-actions">
               <button
-                onClick={startGame}
+                onClick={() => startGame(gameMode)}
                 className="w-full sm:w-auto bg-gray-900 hover:bg-gray-800 text-white font-medium px-6 py-2.5 rounded-full flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-lg"
                 id="stroop-retry-btn"
               >

@@ -4,6 +4,8 @@ import MainMenu from './components/MainMenu';
 import StroopGame from './components/StroopGame';
 import ArithmeticGame from './components/ArithmeticGame';
 import GridMemoryGame from './components/GridMemoryGame';
+import PeopleCountingGame from './components/PeopleCountingGame';
+import NBackGame from './components/NBackGame';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<GameType>('menu');
@@ -66,6 +68,20 @@ export default function App() {
 
         {currentView === 'grid' && (
           <GridMemoryGame
+            onBackToMenu={() => setCurrentView('menu')}
+            onSaveScore={handleSaveScore}
+          />
+        )}
+
+        {currentView === 'counting' && (
+          <PeopleCountingGame
+            onBackToMenu={() => setCurrentView('menu')}
+            onSaveScore={handleSaveScore}
+          />
+        )}
+
+        {currentView === 'nback' && (
+          <NBackGame
             onBackToMenu={() => setCurrentView('menu')}
             onSaveScore={handleSaveScore}
           />

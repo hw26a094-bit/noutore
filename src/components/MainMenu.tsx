@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { Brain, Palette, Calculator, Grid3X3, MousePointer, Keyboard, Award, Calendar, Zap } from 'lucide-react';
+import { Brain, Palette, Calculator, Grid3X3, MousePointer, Keyboard, Award, Calendar, Zap, Home, HelpCircle } from 'lucide-react';
 import { GameType } from '../types';
 
 interface MainMenuProps {
@@ -24,7 +24,7 @@ export default function MainMenu({ onSelectGame, highScores }: MainMenuProps) {
       id: 'arithmetic' as GameType,
       title: '限界暗算ゲーム',
       category: '計算・記憶系',
-      desc: '1ステップずつフラッシュされる数値と四則演算を頭の中で記憶計算！暗記した最終合計をキーボードまたは入力テンキーで解答せよ。',
+      desc: '画面に表示される数式を素早く頭の中で計算！導き出した答えをキーボードまたは入力テンキーで解答せよ。',
       icon: Calculator,
       themeColor: 'amber',
       controls: [{ icon: Keyboard, text: '数字キー・テンキー・クリック' }],
@@ -41,11 +41,33 @@ export default function MainMenu({ onSelectGame, highScores }: MainMenuProps) {
       controls: [{ icon: Keyboard, text: '矢印キー・Enter移動' }, { icon: MousePointer, text: 'クリック選択' }],
       difficulties: ['3x3〜5x5グリッド', '順番の一致再現'],
       borderColor: 'border-indigo-100 hover:border-indigo-300 hover:shadow-indigo-50 bg-indigo-50/10'
+    },
+    {
+      id: 'counting' as GameType,
+      title: '人数数えゲーム',
+      category: '注意力・認知系',
+      desc: '家に出入りするキャラクターを脳内で追跡！おとりの動物を完全に無視して、最後まで家に残っている人間の数を正確にカウントせよ。',
+      icon: Home,
+      themeColor: 'indigo',
+      controls: [{ icon: Keyboard, text: '数字キー・テンキー・クリック' }],
+      difficulties: ['おとり（動物）の出現', '複数人の同時出入り'],
+      borderColor: 'border-blue-100 hover:border-blue-300 hover:shadow-blue-50 bg-blue-50/10'
+    },
+    {
+      id: 'nback' as GameType,
+      title: 'ワーキングメモリトレーニング',
+      category: '作業記憶系',
+      desc: '次々に表示されるシンプルな記号を順に暗記！リアルタイムに「N個前」に表示された記号は何かを選択肢から正確に選べ。',
+      icon: HelpCircle,
+      themeColor: 'violet',
+      controls: [{ icon: MousePointer, text: 'マウス専用' }],
+      difficulties: ['リアルタイム難度上昇', '作業記憶（ワーキングメモリ）'],
+      borderColor: 'border-violet-100 hover:border-violet-300 hover:shadow-violet-50 bg-violet-50/10'
     }
   ];
 
   return (
-    <div className="w-full max-w-5xl mx-auto space-y-10" id="main-menu-container">
+    <div className="w-full max-w-7xl mx-auto space-y-10" id="main-menu-container">
       {/* Title Header */}
       <div className="text-center space-y-3" id="main-menu-header">
         <motion.div
@@ -62,12 +84,12 @@ export default function MainMenu({ onSelectGame, highScores }: MainMenuProps) {
           脳力ゲームセンター
         </h1>
         <p className="text-gray-500 max-w-xl mx-auto text-sm sm:text-base leading-relaxed">
-          科学的脳力アプローチに基づいた3つの本格的なミニゲーム。思考スピード、短期記憶（ワーキングメモリ）、反射神経の限界へと今すぐ挑戦。
+          科学的脳力アプローチに基づいた本格的なミニゲーム。思考スピード、短期記憶（ワーキングメモリ）、反射神経、注意力の限界へと今すぐ挑戦。
         </p>
       </div>
 
       {/* Grid List of Mini Games */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6" id="games-selection-grid">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6" id="games-selection-grid">
         {gamesList.map((game, index) => {
           const GameIcon = game.icon;
           const currentHighScore = highScores[game.id] || 0;
@@ -108,34 +130,6 @@ export default function MainMenu({ onSelectGame, highScores }: MainMenuProps) {
                 <p className="text-gray-600 text-sm leading-relaxed min-h-[72px]">
                   {game.desc}
                 </p>
-
-                {/* Controls Tags */}
-                <div className="space-y-1 pt-2">
-                  <span className="text-[10px] font-bold text-gray-400 block tracking-widest uppercase">操作方法</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {game.controls.map((ctrl, cIdx) => {
-                      const CtrlIcon = ctrl.icon;
-                      return (
-                        <span key={cIdx} className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-600 bg-gray-100/80 border border-gray-200/50 px-2 py-0.5 rounded">
-                          <CtrlIcon size={11} className="text-gray-500" />
-                          {ctrl.text}
-                        </span>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Info Pills */}
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold text-gray-400 block tracking-widest uppercase">仕様範囲</span>
-                  <div className="flex flex-wrap gap-1">
-                    {game.difficulties.map((diff, dIdx) => (
-                      <span key={dIdx} className="text-[11px] font-mono text-gray-500 bg-gray-50 border border-gray-100 px-1.5 py-0.5 rounded">
-                        {diff}
-                      </span>
-                    ))}
-                  </div>
-                </div>
               </div>
 
               {/* Action Button */}

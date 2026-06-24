@@ -34,10 +34,12 @@ function playTone(frequency: number, type: OscillatorType = 'sine', duration = 0
 
 export default function GridMemoryGame({ onBackToMenu, onSaveScore }: GridMemoryGameProps) {
   const [gameState, setGameState] = useState<'idle' | 'showing' | 'playing' | 'ended'>('idle');
+  const [gameMode, setGameMode] = useState<'normal' | 'unlimited'>('normal');
   const [timeLeft, setTimeLeft] = useState(60);
   const [score, setScore] = useState(0);
   const [currentLevel, setCurrentLevel] = useState(1);
   const [combo, setCombo] = useState(0);
+  const [totalQuestionsAnswered, setTotalQuestionsAnswered] = useState(0);
 
   // Grid Configuration
   const [gridSize, setGridSize] = useState(3); // 3x3, 4x4, 5x5
@@ -89,12 +91,26 @@ export default function GridMemoryGame({ onBackToMenu, onSaveScore }: GridMemory
   };
 
   // Run initial game setup
-  const startGame = () => {
+  const startGame = (mode: 'normal' | 'unlimited') => {
+    setGameMode(mode);
     setScore(0);
     setCurrentLevel(1);
     setCombo(0);
     setTimeLeft(60);
+    setTotalQuestionsAnswered(0);
     generateNewSequence(1);
+  };
+
+  const forceEndGame = () => {
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+    if (sequenceTimeoutRef.current) {
+      clearTimeout(sequenceTimeoutRef.current);
+    }
+    setGameState('ended');
+    onSaveScore(score);
   };
 
   // Play a sequence flash show
@@ -135,7 +151,7 @@ export default function GridMemoryGame({ onBackToMenu, onSaveScore }: GridMemory
 
   // General 60-second timer countdown
   useEffect(() => {
-    if (gameState === 'showing' || gameState === 'playing') {
+    if ((gameState === 'showing' || gameState === 'playing') && gameMode === 'normal') {
       if (!countdownIntervalRef.current) {
         countdownIntervalRef.current = setInterval(() => {
           setTimeLeft((prev) => {
@@ -164,7 +180,7 @@ export default function GridMemoryGame({ onBackToMenu, onSaveScore }: GridMemory
         countdownIntervalRef.current = null;
       }
     };
-  }, [gameState, score, onSaveScore]);
+  }, [gameState, gameMode, score, onSaveScore]);
 
   // Trigger evaluation when user taps a panel
   const handlePanelTap = (panelIdx: number) => {
@@ -188,6 +204,7 @@ export default function GridMemoryGame({ onBackToMenu, onSaveScore }: GridMemory
       // Tap was WRONG
       setScore(prev => Math.max(0, prev - 100)); // -100 on mismatch
       setCombo(0);
+      setTotalQuestionsAnswered(prev => prev + 1);
       playTone(150, 'sawtooth', 0.35); // Sad buzzer tone
       
       // Delay slightly and regenerate sequence for same level
@@ -203,6 +220,7 @@ export default function GridMemoryGame({ onBackToMenu, onSaveScore }: GridMemory
       // Completed full sequence! Level Clear
       const completedCombo = combo + 1;
       setCombo(completedCombo);
+      setTotalQuestionsAnswered(prev => prev + 1);
       
       const levelUpPoints = 200 + currentLevel * 100 + completedCombo * 20;
       setScore(prev => prev + levelUpPoints);
@@ -314,13 +332,22 @@ export default function GridMemoryGame({ onBackToMenu, onSaveScore }: GridMemory
               </ul>
             </div>
 
-            <button
-              onClick={startGame}
-              className="bg-gray-900 hover:bg-gray-800 text-white font-medium text-lg px-8 py-3 rounded-full shadow-md hover:shadow-lg transition-all"
-              id="grid-start-btn"
-            >
-              ゲームを開始する
-            </button>
+            <div className="flex flex-col sm:flex-row justify-center items-center gap-4 max-w-md mx-auto">
+              <button
+                onClick={() => startGame('normal')}
+                className="w-full sm:w-1/2 bg-gray-900 hover:bg-gray-800 text-white font-semibold text-base py-3 px-4 rounded-xl shadow-md hover:shadow-lg transition-all"
+                id="grid-start-normal-btn"
+              >
+                通常モード (60秒)
+              </button>
+              <button
+                onClick={() => startGame('unlimited')}
+                className="w-full sm:w-1/2 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-base py-3 px-4 rounded-xl shadow-md hover:shadow-lg transition-all"
+                id="grid-start-unlimited-btn"
+              >
+                無制限モード (時間なし)
+              </button>
+            </div>
           </motion.div>
         )}
 
@@ -331,21 +358,31 @@ export default function GridMemoryGame({ onBackToMenu, onSaveScore }: GridMemory
             id="grid-active-view"
           >
             {/* HUD */}
-            <div className="grid grid-cols-3 gap-4 border-b border-gray-100 pb-5 text-center font-sans animate-fade-in">
-              <div className="bg-gray-50 p-2.5 rounded-xl border border-gray-100">
-                <span className="block text-xs text-gray-400 uppercase font-semibold">レベル</span>
-                <span className="text-xl sm:text-2xl font-bold text-gray-800">Lv.{currentLevel}</span>
+            <div className="grid grid-cols-4 gap-2 border-b border-gray-100 pb-5 text-center font-sans items-stretch animate-fade-in">
+              <div className="bg-gray-50 p-1.5 rounded-xl border border-gray-100 flex flex-col justify-center">
+                <span className="block text-[10px] text-gray-400 uppercase font-semibold">レベル</span>
+                <span className="text-sm sm:text-base font-bold text-gray-800">Lv.{currentLevel}</span>
               </div>
-              <div className="bg-emerald-50/50 p-2.5 rounded-xl border border-emerald-50 flex flex-col items-center justify-center">
-                <span className="text-xs text-emerald-600 font-semibold uppercase flex items-center gap-1 mb-0.5">
-                  <Timer size={12} className="animate-pulse" /> 残りタイム
+              <div className="bg-emerald-50/50 p-1.5 rounded-xl border border-emerald-50 flex flex-col items-center justify-center">
+                <span className="text-[10px] text-emerald-600 font-semibold uppercase flex items-center gap-0.5 mb-0.5">
+                  <Timer size={10} className="animate-pulse" /> {gameMode === 'normal' ? '制限時間' : '回答数'}
                 </span>
-                <span className="text-xl sm:text-2xl font-mono font-bold text-emerald-600">{timeLeft} <span className="text-xs">秒</span></span>
+                <span className="text-sm sm:text-base font-mono font-bold text-emerald-600">
+                  {gameMode === 'normal' ? `${timeLeft}秒` : `${totalQuestionsAnswered}問`}
+                </span>
               </div>
-              <div className="bg-gray-50 p-2.5 rounded-xl border border-gray-100">
-                <span className="block text-xs text-gray-400 uppercase font-semibold">スコア</span>
-                <span className="text-xl sm:text-2xl font-bold text-gray-800">{score}</span>
+              <div className="bg-gray-50 p-1.5 rounded-xl border border-gray-100 flex flex-col justify-center">
+                <span className="block text-[10px] text-gray-400 uppercase font-semibold">スコア</span>
+                <span className="text-sm sm:text-base font-bold text-gray-800">{score}</span>
               </div>
+              <button
+                onClick={forceEndGame}
+                className="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold p-1 rounded-xl border border-rose-200 transition-colors flex flex-col justify-center items-center text-xs sm:text-sm"
+                id="grid-exit-btn"
+              >
+                <span>終了して</span>
+                <span>リザルトへ</span>
+              </button>
             </div>
 
             {/* Turn Status Message */}
@@ -410,8 +447,8 @@ export default function GridMemoryGame({ onBackToMenu, onSaveScore }: GridMemory
               <Award size={36} />
             </div>
 
-            <h2 className="font-sans text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight mb-2">
-              タイムアップ！
+             <h2 className="font-sans text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight mb-2">
+              トレーニング終了！
             </h2>
             <p className="text-gray-500 text-sm mb-6">
               極限の瞬間空間記憶トレーニングが終了しました！
@@ -424,7 +461,7 @@ export default function GridMemoryGame({ onBackToMenu, onSaveScore }: GridMemory
 
             <div className="flex flex-col sm:flex-row justify-center items-center gap-3">
               <button
-                onClick={startGame}
+                onClick={() => startGame(gameMode)}
                 className="w-full sm:w-auto bg-gray-900 hover:bg-gray-800 text-white font-medium px-6 py-2.5 rounded-full flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-lg"
               >
                 <RotateCcw size={16} />
